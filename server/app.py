@@ -1,8 +1,10 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 import json
+import asyncio
 
 from core.adapters import inject_sources_to_syspath
 from core.adapters.browser_adapter import BrowserUseAdapter
@@ -12,18 +14,21 @@ from core.adapters.catalog_500_adapter import Catalog500AgentsAdapter
 from core.orchestration.agent import UnifiedAgent, AgentRole
 from core.orchestration.crew import MultiAgentCrew, TeamTask
 from core.mcp.hub import mcp_hub
+from core.security.guardrail import guardrail, SafetyPolicy
+from core.llm.discovery import LocalLLMScanner
+from core.memory.graph.store import knowledge_graph
+from core.autonomous.runner import OvernightGoalRunner
 from plugins.browser.tools import register_browser_tools
 from plugins.computer_control.tools import register_computer_control_tools
 
-# Initialize paths & MCP tools
 inject_sources_to_syspath()
 register_browser_tools()
 register_computer_control_tools()
 
 app = FastAPI(
     title="OmniAgent Platform API",
-    description="Universal Functional API Gateway for all 16 AI Agents Ecosystem",
-    version="0.2.0"
+    description="Unified Enterprise & Autonomous Agent Gateway v0.3.0",
+    version="0.3.0"
 )
 
 app.add_middleware(
@@ -34,7 +39,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request Models
+class GoalRequest(BaseModel):
+    goal: str
+    max_iterations: int = 10
+
+class CommandValidationRequest(BaseModel):
+    command: str
+    policy: SafetyPolicy = SafetyPolicy.HUMAN_APPROVAL
+
 class WebTaskRequest(BaseModel):
     task: str
     headless: bool = True
@@ -57,38 +69,50 @@ class RunTeamRequest(BaseModel):
     team_name: str = "DevOpsSquad"
     task: str
 
-# 1. System Health & Tools
 @app.get("/api/health")
 async def health():
-    return {
-        "status": "ok",
-        "version": "0.2.0",
-        "ecosystem": "16 Open-Source Projects Functionally Unified"
-    }
+    return {"status": "ok", "version": "0.3.0"}
 
 @app.get("/api/tools")
 async def get_tools():
     return {"tools": mcp_hub.list_tools()}
 
-# 2. Browser-Use Functional Endpoint
+@app.get("/api/llm/discover")
+async def discover_local_llms():
+    scanner = LocalLLMScanner()
+    models = await scanner.scan_ollama_models()
+    return {"models": models}
+
+@app.get("/api/memory/graph")
+async def get_memory_graph():
+    return knowledge_graph.export_graph()
+
+@app.post("/api/security/validate")
+async def validate_command(req: CommandValidationRequest):
+    allowed, message = guardrail.evaluate_command(req.command, req.policy)
+    return {"allowed": allowed, "message": message}
+
+@app.post("/api/goal/start")
+async def start_autonomous_goal(req: GoalRequest):
+    runner = OvernightGoalRunner(req.goal, max_iterations=req.max_iterations)
+    result = await runner.start()
+    return result
+
 @app.post("/api/browser/run")
 async def run_browser(req: WebTaskRequest):
     adapter = BrowserUseAdapter(headless=req.headless)
     return await adapter.run_web_task(req.task)
 
-# 3. AutoGen GroupChat Functional Endpoint
 @app.post("/api/autogen/chat")
 async def run_autogen(req: AutoGenChatRequest):
     adapter = AutoGenAdapter()
     return await adapter.run_conversational_group_chat(req.topic, rounds=req.rounds, roles=req.roles)
 
-# 4. Goose & ECC Developer OS Control Endpoint
 @app.post("/api/dev/execute")
 async def run_goose_ecc(req: DevTaskRequest):
     adapter = GooseECCControlAdapter()
     return await adapter.execute_dev_task(req.instruction)
 
-# 5. 500 AI Agents Blueprints Catalog Endpoint
 @app.get("/api/blueprints")
 async def list_blueprints():
     return {"blueprints": Catalog500AgentsAdapter.list_available_blueprints()}
@@ -97,7 +121,6 @@ async def list_blueprints():
 async def get_blueprint(agent_id: str):
     return Catalog500AgentsAdapter.load_blueprint_code(agent_id)
 
-# 6. Core Orchestration Endpoints
 @app.post("/api/agents/run")
 async def run_agent(req: RunAgentRequest):
     agent = UnifiedAgent(name=req.agent_name, role=req.role, system_prompt=req.system_prompt)
@@ -105,12 +128,20 @@ async def run_agent(req: RunAgentRequest):
 
 @app.post("/api/teams/run")
 async def run_team(req: RunTeamRequest):
-    researcher = UnifiedAgent("WebResearcher", AgentRole.RESEARCHER, "Recherche et synthèse de données fiables.")
-    coder = UnifiedAgent("LeadDeveloper", AgentRole.CODER, "Génération de code robuste et architecture.")
+    researcher = UnifiedAgent("WebResearcher", AgentRole.RESEARCHER, "Recherche et synthèse.")
+    coder = UnifiedAgent("LeadDeveloper", AgentRole.CODER, "Génération de code propre et testé.")
     crew = MultiAgentCrew(req.team_name, [researcher, coder])
     return await crew.execute_task(TeamTask(task_description=req.task))
 
-# 7. WebSocket Live Streaming
+# Server-Sent Events (SSE) stream for live agent thought events
+@app.get("/api/events/sse")
+async def sse_stream():
+    async def event_generator():
+        for i in range(5):
+            await asyncio.sleep(0.5)
+            yield f"data: {json.dumps({'event': 'agent_heartbeat', 'step': i + 1})}\n\n"
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 @app.websocket("/ws/events")
 async def websocket_events(websocket: WebSocket):
     await websocket.accept()
