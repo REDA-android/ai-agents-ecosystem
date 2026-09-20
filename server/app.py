@@ -14,10 +14,12 @@ from core.adapters.catalog_500_adapter import Catalog500AgentsAdapter
 from core.orchestration.agent import UnifiedAgent, AgentRole
 from core.orchestration.crew import MultiAgentCrew, TeamTask
 from core.mcp.hub import mcp_hub
+from core.mcp.store import mcp_store
 from core.security.guardrail import guardrail, SafetyPolicy
 from core.llm.discovery import LocalLLMScanner
 from core.memory.graph.store import knowledge_graph
 from core.autonomous.runner import OvernightGoalRunner
+from core.evaluation.benchmark import DeepSeekHarnessBenchmarker
 from plugins.browser.tools import register_browser_tools
 from plugins.computer_control.tools import register_computer_control_tools
 
@@ -27,8 +29,8 @@ register_computer_control_tools()
 
 app = FastAPI(
     title="OmniAgent Platform API",
-    description="Unified Enterprise & Autonomous Agent Gateway v0.3.0",
-    version="0.3.0"
+    description="Unified Enterprise & Autonomous Agent Gateway v0.4.0",
+    version="0.4.0"
 )
 
 app.add_middleware(
@@ -69,13 +71,37 @@ class RunTeamRequest(BaseModel):
     team_name: str = "DevOpsSquad"
     task: str
 
+class ToolToggleRequest(BaseModel):
+    name: str
+    enabled: bool
+
+class BenchmarkRequest(BaseModel):
+    model: str = "gemini/gemini-1.5-flash"
+
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "0.3.0"}
+    return {"status": "ok", "version": "0.4.0"}
 
+# MCP Tools & External MCP Protocol Endpoint
 @app.get("/api/tools")
 async def get_tools():
-    return {"tools": mcp_hub.list_tools()}
+    return {"tools": mcp_store.list_tools()}
+
+@app.post("/api/tools/toggle")
+async def toggle_tool(req: ToolToggleRequest):
+    updated = mcp_store.toggle_tool(req.name, req.enabled)
+    return {"status": "updated", "tool": updated}
+
+@app.get("/mcp")
+async def mcp_external_endpoint():
+    """Manifest endpoint for Cursor, Claude Desktop and VS Code."""
+    return mcp_store.get_mcp_server_manifest()
+
+# Benchmark DeepSeek-Harness
+@app.post("/api/benchmark/run")
+async def run_benchmark(req: BenchmarkRequest):
+    bench = DeepSeekHarnessBenchmarker(model_name=req.model)
+    return await bench.run_suite()
 
 @app.get("/api/llm/discover")
 async def discover_local_llms():
@@ -128,12 +154,11 @@ async def run_agent(req: RunAgentRequest):
 
 @app.post("/api/teams/run")
 async def run_team(req: RunTeamRequest):
-    researcher = UnifiedAgent("WebResearcher", AgentRole.RESEARCHER, "Recherche et synthèse.")
-    coder = UnifiedAgent("LeadDeveloper", AgentRole.CODER, "Génération de code propre et testé.")
+    researcher = UnifiedAgent("WebResearcher", AgentRole.RESEARCHER, "Recherche et analyse.")
+    coder = UnifiedAgent("LeadDeveloper", AgentRole.CODER, "Implémentation et tests.")
     crew = MultiAgentCrew(req.team_name, [researcher, coder])
     return await crew.execute_task(TeamTask(task_description=req.task))
 
-# Server-Sent Events (SSE) stream for live agent thought events
 @app.get("/api/events/sse")
 async def sse_stream():
     async def event_generator():
