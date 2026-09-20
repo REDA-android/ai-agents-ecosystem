@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.venv
+env/
+venv/
+.pytest_cache/
+apps/web/dist/
+apps/web/node_modules/
+sources/autogen/dotnet/website/images/
