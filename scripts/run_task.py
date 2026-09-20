@@ -17,9 +17,9 @@ def run_antigravity_task():
 
     client = genai.Client(api_key=api_key)
     
-    # Exécution via Gemini 2.5 Flash / Flash Lite
+    # Exécution via Gemini 3.6 Flash
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.6-flash",
         contents=prompt
     )
 
