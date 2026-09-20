@@ -13,6 +13,7 @@ from core.adapters.goose_ecc_adapter import GooseECCControlAdapter
 from core.adapters.catalog_500_adapter import Catalog500AgentsAdapter
 from core.orchestration.agent import UnifiedAgent, AgentRole
 from core.orchestration.crew import MultiAgentCrew, TeamTask
+from core.workflows.engine import VisualWorkflowEngine, VisualWorkflowDefinition
 from core.mcp.hub import mcp_hub
 from core.mcp.store import mcp_store
 from core.security.guardrail import guardrail, SafetyPolicy
@@ -29,8 +30,8 @@ register_computer_control_tools()
 
 app = FastAPI(
     title="OmniAgent Platform API",
-    description="Unified Enterprise & Autonomous Agent Gateway v0.4.0",
-    version="0.4.0"
+    description="Unified Enterprise & Autonomous Agent Gateway v0.5.0",
+    version="0.5.0"
 )
 
 app.add_middleware(
@@ -40,6 +41,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class RunWorkflowRequest(BaseModel):
+    workflow: VisualWorkflowDefinition
+    input_text: str
 
 class GoalRequest(BaseModel):
     goal: str
@@ -80,9 +85,15 @@ class BenchmarkRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "0.4.0"}
+    return {"status": "ok", "version": "0.5.0"}
 
-# MCP Tools & External MCP Protocol Endpoint
+# Visual Workflow Pipeline Execution
+@app.post("/api/workflows/run")
+async def run_visual_workflow(req: RunWorkflowRequest):
+    engine = VisualWorkflowEngine(req.workflow)
+    return await engine.execute(req.input_text)
+
+# MCP Tools & Protocol
 @app.get("/api/tools")
 async def get_tools():
     return {"tools": mcp_store.list_tools()}
@@ -94,7 +105,6 @@ async def toggle_tool(req: ToolToggleRequest):
 
 @app.get("/mcp")
 async def mcp_external_endpoint():
-    """Manifest endpoint for Cursor, Claude Desktop and VS Code."""
     return mcp_store.get_mcp_server_manifest()
 
 # Benchmark DeepSeek-Harness
@@ -121,8 +131,7 @@ async def validate_command(req: CommandValidationRequest):
 @app.post("/api/goal/start")
 async def start_autonomous_goal(req: GoalRequest):
     runner = OvernightGoalRunner(req.goal, max_iterations=req.max_iterations)
-    result = await runner.start()
-    return result
+    return await runner.start()
 
 @app.post("/api/browser/run")
 async def run_browser(req: WebTaskRequest):
