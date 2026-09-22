@@ -1,65 +1,65 @@
 # Rapport de tâche Antigravity (Exécuté dans le Cloud)
 
-- **Date d'exécution** : 2026-09-21 07:31:02 UTC
+- **Date d'exécution** : 2026-09-22 07:10:27 UTC
 - **Prompt** : Exécution planifiée en arrière-plan
 
 ---
 
 ## Résultat / Réponse :
 
-L'**exécution planifiée en arrière-plan** (aussi appelée *scheduled background jobs/tasks*) consiste à lancer des scripts ou des traitements informatiques de manière automatique, à des moments précis ou à des intervalles réguliers, sans intervention humaine et sans bloquer l'interface utilisateur.
+L'**exécution planifiée en arrière-plan** (ou *scheduled background execution*) est un procédé informatique qui permet de lancer automatiquement des tâches ou des programmes à des moments précis (ex: tous les soirs à 2h du matin) ou à des intervalles réguliers (ex: toutes les 15 minutes), **sans intervention humaine** et **sans interface graphique visible**.
 
-Voici un récapitulatif complet des usages, des outils et des meilleures pratiques selon votre environnement :
-
----
-
-### 1. Cas d'usage fréquents
-* **Maintenance :** Nettoyage des fichiers temporaires, optimisation des bases de données.
-* **Sauvegardes (Backups) :** Exportation quotidienne ou hebdomadaire des données.
-* **Notifications :** Envoi de newsletters, rappels ou e-mails de relance.
-* **Synchronisation :** Récupération de données via des API externes (ETL, météo, cours de la bourse).
+Voici un récapitulatif de son fonctionnement, de ses usages et des outils selon votre contexte :
 
 ---
 
-### 2. Comment la mettre en œuvre ?
+### 1. Cas d'utilisation fréquents
+* **Sauvegardes (Backups) :** Sauvegarder une base de données ou des fichiers chaque nuit.
+* **Nettoyage :** Supprimer les fichiers temporaires, la mémoire cache ou les sessions expirées.
+* **Notifications et E-mails :** Envoyer des rappels, des newsletters ou des factures de manière différée.
+* **Synchronisation d'API :** Récupérer les données d'un service tiers (ex: météo, cours de la bourse).
+* **Génération de rapports :** Calculer des statistiques hebdomadaires ou mensuelles.
 
-#### A. Au niveau du Système d'Exploitation (Serveurs / PC)
+---
+
+### 2. Comment la mettre en place (selon l'environnement)
+
+#### A. Sur un Système d'Exploitation (Serveur / PC)
 * **Linux / Unix :** 
-  * **Cron (`crontab`) :** Le standard classique. On définit des tâches avec une syntaxe temporelle (ex: `0 2 * * *` pour tous les jours à 2h du matin).
-  * **Systemd Timers :** Plus moderne et robuste que cron, idéal pour gérer les dépendances et les logs.
-* **Windows :** 
-  * **Planificateur de tâches (Task Scheduler) :** Interface graphique et outil en ligne de commande (`schtasks`) pour lancer des scripts PowerShell, Python ou des `.bat`.
+  * **Cron (crontab) :** L'outil le plus classique. On définit des règles temporelles (ex: `0 2 * * * /path/to/script.sh`).
+  * **Systemd Timers :** Alternative moderne à Cron, plus robuste pour les services complexes.
+* **Windows :**
+  * **Planificateur de tâches (Task Scheduler) :** Interface graphique et outil en ligne de commande (`schtasks`) pour exécuter des scripts (PowerShell, Batch, Python).
 
-#### B. Dans le développement Web / Backend
-Si vous développez une application, il est préférable de gérer les tâches planifiées directement via le code ou un gestionnaire de files d'attente (Queues) :
-* **Python :** `Celery` (avec Celery Beat), `APScheduler`, ou `RQ`.
-* **Node.js :** `node-cron`, `Agenda.js`, ou `BullMQ` (avec Redis).
-* **PHP :** Le planificateur de tâches de **Laravel** (`php artisan schedule:run`).
-* **Java / Spring :** L'annotation `@Scheduled`.
-* **.NET / C# :** `Quartz.NET` ou `Hangfire`.
+#### B. En Développement Web & Backend
+* **Python :** `Celery` (avec RabbitMQ/Redis), `APScheduler`, ou `Airflow` (pour les flux de données complexes).
+* **Node.js :** `node-cron`, `Agenda`, ou `BULL` (basé sur Redis).
+* **PHP / Laravel :** Le système de *Task Scheduling* intégré à Laravel (repose sur une seule ligne cron).
+* **Java / Spring Boot :** L'annotation `@Scheduled`.
 
 #### C. Dans le Cloud (Serverless)
-Pour éviter de maintenir un serveur allumé 24/7 :
-* **AWS :** *AWS EventBridge* (déclencheur temporel) combiné avec *AWS Lambda* ou *ECS*.
-* **Google Cloud :** *Cloud Scheduler* couplé avec *Cloud Functions* ou *Cloud Run*.
-* **Microsoft Azure :** *Azure Functions* (avec un déclencheur Timer).
+* **AWS :** Amazon EventBridge (CloudWatch Events) combiné avec des fonctions AWS Lambda.
+* **Google Cloud :** Cloud Scheduler combiné avec Cloud Functions ou Cloud Run.
+* **Microsoft Azure :** Azure Logic Apps ou Azure Functions avec déclencheur *Timer*.
 
-#### D. Sur les applications Mobiles
-Les OS mobiles restreignent fortement l'arrière-plan pour économiser la batterie :
-* **Android :** Utilisation de `WorkManager` (recommandé par Google).
-* **iOS :** Utilisation du framework `BGTaskScheduler`.
+#### D. Sur Mobile (iOS / Android)
+* **Android :** `WorkManager` (recommandé pour les tâches différées et garanties).
+* **iOS :** `BackgroundTasks` framework (soumis aux restrictions strictes d'Apple pour préserver la batterie).
 
 ---
 
-### 3. Bonnes pratiques de conception
-1. **Idempotence :** Assurez-vous qu'une tâche peut être exécutée plusieurs fois de suite sans créer de doublons ou corrompre les données (en cas de re-tentative après un crash).
-2. **Gestion des logs et des erreurs :** Redirigez toujours les sorties (`stdout` / `stderr`) vers des fichiers de logs ou un service de monitoring (Sentry, Datadog) pour savoir si la tâche a échoué.
-3. **Gestion des verrous (Locks) :** Si une tâche prend plus de temps que prévu, empéchez la session suivante de se lancer en parallèle si elles risquent de confliter (ex: utilisation de Redis Locks).
-4. **Timeouts :** Définissez un temps d'exécution maximal pour éviter qu'un processus bloqué ne consomme des ressources indéfiniment.
+### 3. Les bonnes pratiques
+1. **Gestion des erreurs et alertes :** Si la tâche échoue en arrière-plan, le système doit envoyer une alerte (e-mail, Slack, logs).
+2. **Éviter le chevauchement (Overlap) :** S'assurer qu'une tâche ne se lance pas une deuxième fois si la première exécution n'est pas encore terminée.
+3. **Gestion des ressources :** Planifier les lourdes exécutions pendant les heures creuses (la nuit).
+4. **Logs (Traçabilité) :** Toujours écrire un historique de ce que la tâche a fait (`stdout` / fichiers de logs).
 
 ---
 
-**Souhaitez-vous de l'aide pour configurer une tâche planifiée dans un langage, un système (Linux/Windows) ou un environnement Cloud spécifique ?**
+### De quoi avez-vous besoin exactement ?
+Si vous cherchez de l'aide pour un projet précis, dites-moi :
+1. Quel **langage** ou **système** vous utilisez (Linux, Windows, Python, Node.js, React Native, etc.) ?
+2. Quelle est la **tâche** que vous souhaitez planifier ?
 
 ---
 *Généré automatiquement par Antigravity Cloud Runner (GitHub Actions).*
