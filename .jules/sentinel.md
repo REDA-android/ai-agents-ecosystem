@@ -1,0 +1,4 @@
+## 2024-11-13 - [Command Injection Prevention in execute_shell_command]
+**Vulnerability:** The `execute_shell_command` function in `plugins/computer_control/tools.py` was passing `command` string directly to `asyncio.create_subprocess_shell` without checking against known destructive patterns (like rm -rf /, etc). This was an unmitigated command injection vulnerability for anyone invoking this MCP tool.
+**Learning:** We can utilize the existing `SafetyGuardrail` class in `core/security/guardrail.py` to validate user input against a regular expression whitelist / blacklist prior to execution.
+**Prevention:** Before directly invoking subprocess.shell, run inputs against the `SafetyGuardrail.evaluate_command(command, policy)` framework to trap malicious inputs.
