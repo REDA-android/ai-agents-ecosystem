@@ -1,65 +1,51 @@
 # Rapport de tâche Antigravity (Exécuté dans le Cloud)
 
-- **Date d'exécution** : 2026-09-22 07:10:27 UTC
+- **Date d'exécution** : 2026-09-23 07:08:26 UTC
 - **Prompt** : Exécution planifiée en arrière-plan
 
 ---
 
 ## Résultat / Réponse :
 
-L'**exécution planifiée en arrière-plan** (ou *scheduled background execution*) est un procédé informatique qui permet de lancer automatiquement des tâches ou des programmes à des moments précis (ex: tous les soirs à 2h du matin) ou à des intervalles réguliers (ex: toutes les 15 minutes), **sans intervention humaine** et **sans interface graphique visible**.
+L'**exécution planifiée en arrière-plan** (ou *scheduled background execution*) est une technique informatique qui permet de lancer des tâches automatiquement, sans intervention de l'utilisateur, à des moments précis ou selon des intervalles réguliers.
 
-Voici un récapitulatif de son fonctionnement, de ses usages et des outils selon votre contexte :
+Pour vous aider au mieux, **dans quel contexte souhaitez-vous mettre cela en place ?**
 
----
-
-### 1. Cas d'utilisation fréquents
-* **Sauvegardes (Backups) :** Sauvegarder une base de données ou des fichiers chaque nuit.
-* **Nettoyage :** Supprimer les fichiers temporaires, la mémoire cache ou les sessions expirées.
-* **Notifications et E-mails :** Envoyer des rappels, des newsletters ou des factures de manière différée.
-* **Synchronisation d'API :** Récupérer les données d'un service tiers (ex: météo, cours de la bourse).
-* **Génération de rapports :** Calculer des statistiques hebdomadaires ou mensuelles.
+Voici les cas les plus fréquents et les outils associés :
 
 ---
 
-### 2. Comment la mettre en place (selon l'environnement)
+### 1. Développement Mobile (Android / iOS)
+Utile pour : synchroniser des données, télécharger du contenu, envoyer des notifications locales.
+* **Android :** On utilise généralement **`WorkManager`** (recommandé par Google pour les tâches garanties) ou `AlarmManager` (pour des heures très précises).
+* **iOS :** On utilise le framework **`BackgroundTasks`** (`BGAppRefreshTask` ou `BGProcessingTask`). *Note : iOS impose des restrictions strictes pour économiser la batterie.*
 
-#### A. Sur un Système d'Exploitation (Serveur / PC)
-* **Linux / Unix :** 
-  * **Cron (crontab) :** L'outil le plus classique. On définit des règles temporelles (ex: `0 2 * * * /path/to/script.sh`).
-  * **Systemd Timers :** Alternative moderne à Cron, plus robuste pour les services complexes.
-* **Windows :**
-  * **Planificateur de tâches (Task Scheduler) :** Interface graphique et outil en ligne de commande (`schtasks`) pour exécuter des scripts (PowerShell, Batch, Python).
+### 2. Développement Web & Backend
+Utile pour : envoyer des emails récapitulatifs, générer des rapports, nettoyer la base de données.
+* **Node.js :** Modules comme `node-cron`, `agenda`, ou `BullMQ` (avec Redis).
+* **Python :** `Celery` (avec RabbitMQ/Redis), `APScheduler`, ou `rq`.
+* **PHP / Laravel :** Le système de *Task Scheduling* de Laravel (qui s'appuie sur une seule tâche Cron).
+* **Java / Spring :** L'annotation `@Scheduled`.
 
-#### B. En Développement Web & Backend
-* **Python :** `Celery` (avec RabbitMQ/Redis), `APScheduler`, ou `Airflow` (pour les flux de données complexes).
-* **Node.js :** `node-cron`, `Agenda`, ou `BULL` (basé sur Redis).
-* **PHP / Laravel :** Le système de *Task Scheduling* intégré à Laravel (repose sur une seule ligne cron).
-* **Java / Spring Boot :** L'annotation `@Scheduled`.
+### 3. Administration Système (Serveurs & PC)
+Utile pour : sauvegardes (backups), scripts de maintenance, mise à jour de scripts.
+* **Linux / macOS :** Les **tâches Cron** (via `crontab -e`) ou les timers `systemd`.
+* **Windows :** Le **Planificateur de tâches** (*Task Scheduler*) ou les scripts PowerShell planifiés.
 
-#### C. Dans le Cloud (Serverless)
-* **AWS :** Amazon EventBridge (CloudWatch Events) combiné avec des fonctions AWS Lambda.
-* **Google Cloud :** Cloud Scheduler combiné avec Cloud Functions ou Cloud Run.
-* **Microsoft Azure :** Azure Logic Apps ou Azure Functions avec déclencheur *Timer*.
-
-#### D. Sur Mobile (iOS / Android)
-* **Android :** `WorkManager` (recommandé pour les tâches différées et garanties).
-* **iOS :** `BackgroundTasks` framework (soumis aux restrictions strictes d'Apple pour préserver la batterie).
-
----
-
-### 3. Les bonnes pratiques
-1. **Gestion des erreurs et alertes :** Si la tâche échoue en arrière-plan, le système doit envoyer une alerte (e-mail, Slack, logs).
-2. **Éviter le chevauchement (Overlap) :** S'assurer qu'une tâche ne se lance pas une deuxième fois si la première exécution n'est pas encore terminée.
-3. **Gestion des ressources :** Planifier les lourdes exécutions pendant les heures creuses (la nuit).
-4. **Logs (Traçabilité) :** Toujours écrire un historique de ce que la tâche a fait (`stdout` / fichiers de logs).
+### 4. Cloud (Serverless)
+Utile pour : exécuter du code sans gérer de serveur 24/7.
+* **AWS :** Amazon EventBridge (Cron) déclenchant une fonction **AWS Lambda**.
+* **Google Cloud :** **Cloud Scheduler** déclenchant une Cloud Function ou un service Cloud Run.
+* **Azure :** Azure Functions avec un *Timer trigger*.
 
 ---
 
-### De quoi avez-vous besoin exactement ?
-Si vous cherchez de l'aide pour un projet précis, dites-moi :
-1. Quel **langage** ou **système** vous utilisez (Linux, Windows, Python, Node.js, React Native, etc.) ?
-2. Quelle est la **tâche** que vous souhaitez planifier ?
+### Bonnes pratiques générales
+* **Gestion des erreurs :** Prévoyez des *logs* (journaux) et des alertes si la tâche échoue.
+* **Idempotence :** Faites en sorte que si la tâche s'exécute deux fois par erreur, cela ne corrompe pas vos données.
+* **Impact sur la batterie / ressources :** Sur mobile, privilégiez les exécutions lorsque l'appareil est en charge ou connecté au Wi-Fi.
+
+**Dites-moi quel langage, système ou framework vous utilisez, et je vous donnerai un exemple de code ou la procédure exacte !**
 
 ---
 *Généré automatiquement par Antigravity Cloud Runner (GitHub Actions).*
