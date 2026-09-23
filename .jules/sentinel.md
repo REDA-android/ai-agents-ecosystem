@@ -1,0 +1,4 @@
+## 2024-05-18 - Missing Guardrail Check on Shell Execution
+**Vulnerability:** The `execute_shell_command` function in `plugins/computer_control/tools.py` was directly executing shell commands without evaluating them against the existing safety guardrail, exposing the application to critical command injection and dangerous OS operations.
+**Learning:** Even when a robust security guardrail system exists (`core.security.guardrail`), it is ineffective if not explicitly invoked at all entry points that execute system commands. Developers might assume a central utility inherently provides safety.
+**Prevention:** All OS, shell, and subprocess execution calls must explicitly invoke `guardrail.evaluate_command()` to validate inputs before proceeding. Code reviews should specifically look for missing guardrail checks on any `asyncio.create_subprocess_shell` or similar calls.
