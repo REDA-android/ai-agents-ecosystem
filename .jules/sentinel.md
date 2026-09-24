@@ -1,0 +1,4 @@
+## 2024-05-24 - OS Command Injection in Shell Plugin
+**Vulnerability:** Found a critical command injection vulnerability in `plugins/computer_control/tools.py`. The `execute_shell_command` function executed unvalidated user input via `asyncio.create_subprocess_shell` without checking it against the global security rules.
+**Learning:** This codebase enforces a strict security architecture where ALL OS and shell command executions MUST be validated using `core.security.guardrail.SafetyGuardrail.evaluate_command()` to prevent malicious payload execution or destructive operations (e.g., `rm -rf /`).
+**Prevention:** Always ensure that `guardrail.evaluate_command(command, SafetyPolicy.HUMAN_APPROVAL)` is called and evaluated before directly dispatching any input to a subprocess function or shell execution engine.
