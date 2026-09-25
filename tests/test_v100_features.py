@@ -64,3 +64,16 @@ def test_self_healing_endpoint():
     assert data["status"] == "healed"
     assert "final_code" in data
     assert len(data["attempts"]) > 0
+
+def test_claude_chat_endpoint():
+    res = client.post("/api/chat/claude", json={
+        "message": "Bonjour Claude, peux-tu m'écrire une fonction de tri en Python ?",
+        "model": "claude-3-5-sonnet",
+        "deep_thinking": True
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert "response" in data
+    assert "tokens" in data
+    assert data["tokens"]["total"] > 0
+

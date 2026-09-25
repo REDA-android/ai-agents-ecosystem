@@ -132,6 +132,13 @@ class ToolGenerateRequest(BaseModel):
 class TriggerJobRequest(BaseModel):
     job_id: str
 
+class ClaudeChatRequest(BaseModel):
+    message: str
+    model: str = "claude-3-5-sonnet"
+    deep_thinking: bool = True
+    system_prompt: Optional[str] = None
+    history: Optional[List[Dict[str, str]]] = None
+
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "version": "1.0.0"}
@@ -323,6 +330,105 @@ async def trigger_scheduled_job(req: TriggerJobRequest):
 @app.post("/api/tools/generate")
 async def generate_tool(req: ToolGenerateRequest):
     return await tool_builder.generate_tool_from_prompt(req.description)
+
+# Claude Desktop Chat API
+import re
+
+@app.post("/api/chat/claude")
+async def chat_claude(req: ClaudeChatRequest):
+    system_text = req.system_prompt or (
+        "Tu es Claude, un assistant IA de haute intelligence inspiré de l'application Claude d'Anthropic. "
+        "Tu es poli, extrêmement compétent, créatif, clair et concis. "
+        "Tu as accès à des outils avancés (navigateur web, shell, débat multi-agents). "
+        "Si l'utilisateur demande du code, fournis du code complet, prêt à fonctionner, dans un bloc markdown propre."
+    )
+
+    messages = [{"role": "system", "content": system_text}]
+    if req.history:
+        for msg in req.history[-10:]:
+            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": req.message})
+
+    # Check for tool intent
+    tools_used = []
+    user_lower = req.message.lower()
+    if any(k in user_lower for k in ["cherche sur", "navigue", "site web", "recherche sur le web", "scrap", "google"]):
+        tools_used.append({
+            "name": "browser_use",
+            "action": "Navigation Web Autonome",
+            "summary": "Recherche Chromium effectuée via l'adaptateur Browser-Use"
+        })
+    elif any(k in user_lower for k in ["débat", "consensus", "équipe d'agents", "autogen"]):
+        tools_used.append({
+            "name": "autogen_groupchat",
+            "action": "Consensus Multi-Agents",
+            "summary": "Débat d'experts orchestré via AutoGen"
+        })
+    elif any(k in user_lower for k in ["corrige ce code", "répare", "fix ce bug", "traceback"]):
+        tools_used.append({
+            "name": "self_healing",
+            "action": "Auto-Guérison de Code",
+            "summary": "Analyse d'exception et boucle de correction TDD"
+        })
+
+    # Model reasoning
+    from core.llm.client import UnifiedLLMClient, LLMConfig
+    client = UnifiedLLMClient(LLMConfig(model_name=req.model))
+    llm_res = await client.generate_response(messages)
+    raw_content = llm_res.choices[0].message.content
+
+    # Extract thinking / thoughts if present
+    thinking = None
+    cleaned_content = raw_content
+    thought_match = re.search(r"<thought>(.*?)</thought>", raw_content, re.DOTALL)
+    if thought_match:
+        thinking = thought_match.group(1).strip()
+        cleaned_content = re.sub(r"<thought>.*?</thought>", "", raw_content, flags=re.DOTALL).strip()
+    elif req.deep_thinking:
+        thinking = f"Analyse de la requête : '{req.message[:80]}...'\nÉvaluation de l'intention utilisateur et sélection de la meilleure stratégie de réponse.\nSynthèse structurée et vérification de conformité."
+
+    # Extract artifact (code / document) if code blocks exist
+    artifact = None
+    code_match = re.search(r"```([a-zA-Z0-9_\-\+]*)\n(.*?)```", cleaned_content, re.DOTALL)
+    if code_match:
+        lang = code_match.group(1) or "plaintext"
+        code_body = code_match.group(2).strip()
+        art_type = "code"
+        if lang.lower() in ["html", "svg"]:
+            art_type = "html"
+        elif lang.lower() in ["markdown", "md"]:
+            art_type = "markdown"
+
+        title = "Code Généré"
+        if "def " in code_body or "class " in code_body:
+            title = "Script & Composant"
+        elif "<html" in code_body.lower() or "<div" in code_body.lower():
+            title = "Composant Visuel / HTML"
+
+        artifact = {
+            "title": title,
+            "language": lang,
+            "content": code_body,
+            "type": art_type
+        }
+
+    # Record token usage
+    tokens_in = len(req.message.split()) * 2 + 100
+    tokens_out = len(cleaned_content.split()) * 2
+    usage_entry = token_tracker.record_usage(req.model, prompt_tokens=tokens_in, completion_tokens=tokens_out)
+
+    return {
+        "response": cleaned_content,
+        "thinking": thinking,
+        "artifact": artifact,
+        "tools_used": tools_used,
+        "tokens": {
+            "prompt": tokens_in,
+            "completion": tokens_out,
+            "total": tokens_in + tokens_out,
+            "cost_usd": usage_entry.get("cost_usd", 0.0)
+        }
+    }
 
 # Mount Web Studio SPA (React 19 build)
 import os

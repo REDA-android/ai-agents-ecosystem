@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ClaudeApp from './ClaudeApp';
 import { 
   Bot, 
   Globe, 
@@ -183,6 +184,7 @@ interface ScheduledJobItem {
 }
 
 export default function App() {
+  const [appMode, setAppMode] = useState<'claude' | 'dev_console'>('claude');
   const [activeTab, setActiveTab] = useState<
     'hub' | 'adk' | 'hermes' | 'langchain' | 'airi' | 'omnigent' | 'tools' | 'benchmark' | 'autogen' | 'browser' | 'goal' | 'security' | 'graph' | 'sources' | 'settings' | 'scheduler' | 'tool_builder' | 'self_healing' | 'analytics'
   >('hub');
@@ -640,11 +642,22 @@ export default function App() {
     }
   };
 
+  if (appMode === 'claude') {
+    return <ClaudeApp onSwitchToDevConsole={() => setAppMode('dev_console')} />;
+  }
+
   return (
     <div className="flex h-screen bg-[#080b14] text-slate-100 font-sans">
       {/* Sidebar */}
       <aside className="w-64 border-r border-slate-800/80 bg-[#05070e] p-4 flex flex-col justify-between overflow-y-auto">
         <div>
+          <button
+            onClick={() => setAppMode('claude')}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold mb-3 transition shadow-sm"
+          >
+            <span>← Revenir à l'App Claude</span>
+          </button>
+
           <div className="flex items-center gap-3 px-2 py-3 mb-4">
             <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
               <Bot className="w-6 h-6" />
