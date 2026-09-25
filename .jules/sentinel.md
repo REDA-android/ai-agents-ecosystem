@@ -1,0 +1,4 @@
+## 2025-02-18 - Missing safety guardrail for computer control tool
+**Vulnerability:** OS command injection risk in the `execute_shell_command` tool in `plugins/computer_control/tools.py`. The tool was directly passing the `command` variable to `asyncio.create_subprocess_shell` without evaluating it using `SafetyGuardrail.evaluate_command()`, contrary to the security architecture described in memory.
+**Learning:** Even when security utilities exist (like `SafetyGuardrail`), they are not always implemented across all tool endpoints, especially new plugins or loosely integrated functionalities (like computer control/Goose adapters). We must ensure that any method performing shell execution calls the central validation service.
+**Prevention:** Always verify that input destined for OS-level execution (`subprocess`, `os.system`, `exec`) is wrapped in a guardrail evaluation check. Do not assume tools provided by plugins are safe by default.
