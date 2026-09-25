@@ -331,6 +331,44 @@ async def trigger_scheduled_job(req: TriggerJobRequest):
 async def generate_tool(req: ToolGenerateRequest):
     return await tool_builder.generate_tool_from_prompt(req.description)
 
+class ExecuteCodeRequest(BaseModel):
+    code: str
+    language: str = "python"
+
+@app.post("/api/code/execute")
+async def execute_code_snippet(req: ExecuteCodeRequest):
+    if req.language.lower() != "python":
+        return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
+
+    import tempfile, subprocess, sys, os
+    with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
+        f.write(req.code)
+        temp_path = f.name
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, temp_path],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return {
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+            "exit_code": proc.returncode,
+            "output": proc.stdout if proc.returncode == 0 else (proc.stdout + "\n" + proc.stderr)
+        }
+    except subprocess.TimeoutExpired:
+        return {"output": "Erreur : Temps d'exécution dépassé (timeout 10s)", "exit_code": 124}
+    except Exception as e:
+        return {"output": f"Erreur d'exécution : {str(e)}", "exit_code": 1}
+    finally:
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+
+
 # Claude Desktop Chat API
 import re
 
