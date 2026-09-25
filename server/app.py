@@ -31,14 +31,19 @@ from core.evaluation.benchmark import DeepSeekHarnessBenchmarker
 from plugins.browser.tools import register_browser_tools
 from plugins.computer_control.tools import register_computer_control_tools
 
+from core.analytics.token_tracker import token_tracker
+from core.self_healing.engine import self_healing
+from core.scheduler.manager import agent_scheduler
+from core.tool_builder.builder import tool_builder
+
 inject_sources_to_syspath()
 register_browser_tools()
 register_computer_control_tools()
 
 app = FastAPI(
     title="OmniAgent Platform API",
-    description="Unified Enterprise & Autonomous Agent Gateway v0.6.0",
-    version="0.6.0"
+    description="Unified Enterprise & Autonomous Agent Gateway v1.0.0",
+    version="1.0.0"
 )
 
 app.add_middleware(
@@ -116,9 +121,20 @@ class OmnigentRouteRequest(BaseModel):
     media_type: Optional[str] = None
     execute: bool = True
 
+class HealCodeRequest(BaseModel):
+    original_code: str
+    error_message: str
+    goal: str = "Corriger le bug sans régression"
+
+class ToolGenerateRequest(BaseModel):
+    description: str
+
+class TriggerJobRequest(BaseModel):
+    job_id: str
+
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "0.6.0"}
+    return {"status": "ok", "version": "1.0.0"}
 
 # Visual Workflow Pipeline Execution
 @app.post("/api/workflows/run")
@@ -279,3 +295,31 @@ async def websocket_events(websocket: WebSocket):
             await websocket.send_text(json.dumps({"event": "ack", "data": data}))
     except WebSocketDisconnect:
         pass
+
+# Analytics & FinOps
+@app.get("/api/analytics/tokens")
+async def get_token_analytics():
+    return token_tracker.get_summary()
+
+# Self-Healing Code Assistant
+@app.post("/api/self-healing/heal")
+async def heal_broken_code(req: HealCodeRequest):
+    return await self_healing.heal_code(
+        original_code=req.original_code,
+        error_message=req.error_message,
+        goal=req.goal
+    )
+
+# Autonomous Scheduler
+@app.get("/api/scheduler/jobs")
+async def list_scheduled_jobs():
+    return {"jobs": agent_scheduler.list_jobs()}
+
+@app.post("/api/scheduler/trigger")
+async def trigger_scheduled_job(req: TriggerJobRequest):
+    return agent_scheduler.trigger_job(req.job_id)
+
+# Custom Tool Builder
+@app.post("/api/tools/generate")
+async def generate_tool(req: ToolGenerateRequest):
+    return await tool_builder.generate_tool_from_prompt(req.description)

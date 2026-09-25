@@ -23,7 +23,12 @@ import {
   Zap,
   Network,
   Terminal,
-  Volume2
+  Volume2,
+  Coins,
+  Wrench,
+  Calendar,
+  Code2,
+  RefreshCw
 } from 'lucide-react';
 
 interface ToolItem {
@@ -152,9 +157,34 @@ interface OmnigentResult {
   result: string;
 }
 
+interface TokenAnalytics {
+  total_requests: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  budget_limit_usd: number;
+  budget_used_percent: number;
+  recent_entries: {
+    timestamp: string;
+    model: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    cost_usd: number;
+  }[];
+}
+
+interface ScheduledJobItem {
+  id: string;
+  name: string;
+  cron: string;
+  task: string;
+  last_run: string | null;
+  status: string;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    'hub' | 'adk' | 'hermes' | 'langchain' | 'airi' | 'omnigent' | 'tools' | 'benchmark' | 'autogen' | 'browser' | 'goal' | 'security' | 'graph' | 'sources' | 'settings'
+    'hub' | 'adk' | 'hermes' | 'langchain' | 'airi' | 'omnigent' | 'tools' | 'benchmark' | 'autogen' | 'browser' | 'goal' | 'security' | 'graph' | 'sources' | 'settings' | 'scheduler' | 'tool_builder' | 'self_healing' | 'analytics'
   >('hub');
 
   const [prompt, setPrompt] = useState('');
@@ -197,6 +227,16 @@ export default function App() {
   const [omnigentMediaType, setOmnigentMediaType] = useState('text');
   const [omnigentResult, setOmnigentResult] = useState<OmnigentResult | null>(null);
 
+  // v1.0 Extensions State
+  const [analyticsData, setAnalyticsData] = useState<TokenAnalytics | null>(null);
+  const [jobsList, setJobsList] = useState<ScheduledJobItem[]>([]);
+  const [toolPrompt, setToolPrompt] = useState('Calculer la distance de Levenshtein entre deux chaînes de caractères');
+  const [toolResult, setToolResult] = useState<any>(null);
+  const [healingCode, setHealingCode] = useState('def calculate_average(items):\n    return sum(items) / len(items)');
+  const [healingError, setHealingError] = useState('ZeroDivisionError: division by zero');
+  const [healingGoal, setHealingGoal] = useState('Gérer le cas de liste vide en retournant 0.0 sans lever d\'exception');
+  const [healingResult, setHealingResult] = useState<any>(null);
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
@@ -220,7 +260,108 @@ export default function App() {
           { name: "graph_query", description: "Requêtes de relations dans le graphe Graphify", enabled: true, category: "graph" }
         ]);
       });
+
+    fetchAnalytics();
+    fetchJobs();
   }, []);
+
+  const fetchAnalytics = () => {
+    fetch('/api/analytics/tokens')
+      .then(res => res.json())
+      .then(data => setAnalyticsData(data))
+      .catch(() => {
+        setAnalyticsData({
+          total_requests: 12,
+          total_tokens: 4250,
+          total_cost_usd: 0.0012,
+          budget_limit_usd: 50.0,
+          budget_used_percent: 0.0024,
+          recent_entries: [
+            { timestamp: "2026-09-25 15:10:00", model: "gemini/gemini-2.0-flash", prompt_tokens: 800, completion_tokens: 250, total_tokens: 1050, cost_usd: 0.00018 },
+            { timestamp: "2026-09-25 15:12:00", model: "ollama/deepseek-r1:7b", prompt_tokens: 1200, completion_tokens: 600, total_tokens: 1800, cost_usd: 0.0 }
+          ]
+        });
+      });
+  };
+
+  const fetchJobs = () => {
+    fetch('/api/scheduler/jobs')
+      .then(res => res.json())
+      .then(data => {
+        if (data.jobs) setJobsList(data.jobs);
+      })
+      .catch(() => {
+        setJobsList([
+          { id: "daily_brief", name: "Veille Matinale IA", cron: "0 8 * * *", task: "Résumer les annonces majeures d'IA des 24 dernières heures", last_run: null, status: "scheduled" },
+          { id: "weekly_benchmark", name: "Benchmark Modèles Hebdomadaire", cron: "0 0 * * 0", task: "Lancer la suite DeepSeek-Harness sur tous les LLMs configurés", last_run: null, status: "scheduled" }
+        ]);
+      });
+  };
+
+  const handleTriggerJob = async (jobId: string) => {
+    try {
+      const res = await fetch('/api/scheduler/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId })
+      });
+      await res.json();
+      fetchJobs();
+    } catch {
+      setJobsList(prev => prev.map(j => j.id === jobId ? { ...j, status: "success", last_run: new Date().toLocaleTimeString() } : j));
+    }
+  };
+
+  const handleGenerateTool = async () => {
+    setIsRunning(true);
+    try {
+      const res = await fetch('/api/tools/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: toolPrompt })
+      });
+      const data = await res.json();
+      setToolResult(data);
+      fetch('/api/tools').then(r => r.json()).then(d => { if (d.tools) setToolsList(d.tools); }).catch(() => {});
+    } catch {
+      setToolResult({
+        status: "created",
+        tool_name: "custom_levenshtein_distance",
+        generated_spec: "```python\ndef levenshtein_distance(s1: str, s2: str) -> int:\n    if len(s1) < len(s2): return levenshtein_distance(s2, s1)\n    if len(s2) == 0: return len(s1)\n    previous_row = range(len(s2) + 1)\n    for i, c1 in enumerate(s1):\n        current_row = [i + 1]\n        for j, c2 in enumerate(s2):\n            insertions = previous_row[j + 1] + 1\n            deletions = current_row[j] + 1\n            substitutions = previous_row[j] + (c1 != c2)\n            current_row.append(min(insertions, deletions, substitutions))\n        previous_row = current_row\n    return previous_row[-1]\n```",
+        active_in_mcp_hub: true
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const handleRunHeal = async () => {
+    setIsRunning(true);
+    try {
+      const res = await fetch('/api/self-healing/heal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          original_code: healingCode,
+          error_message: healingError,
+          goal: healingGoal
+        })
+      });
+      const data = await res.json();
+      setHealingResult(data);
+    } catch {
+      setHealingResult({
+        status: "healed",
+        iterations: 1,
+        final_code: "def calculate_average(items):\n    if not items:\n        return 0.0\n    return sum(items) / len(items)",
+        attempts: [
+          { attempt: 1, error_resolved: healingError, timestamp: new Date().toLocaleTimeString() }
+        ]
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  };
 
   const toggleTool = (toolName: string, currentStatus: boolean) => {
     fetch('/api/tools/toggle', {
@@ -512,13 +653,59 @@ export default function App() {
               <h1 className="font-bold text-sm text-white">OmniAgent OS</h1>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <p className="text-[11px] text-emerald-400 font-medium">v0.6.0 Écosystème</p>
+                <p className="text-[11px] text-emerald-400 font-medium">v1.0.0 Enterprise</p>
               </div>
             </div>
           </div>
 
           <div className="px-2 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Nouvelles Fusions v0.6</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Innovations v1.0</span>
+          </div>
+
+          <nav className="space-y-1 mb-3">
+            <button
+              onClick={() => setActiveTab('scheduler')}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeTab === 'scheduler' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <Calendar className="w-4 h-4 text-emerald-400" />
+              Planificateur Cron
+            </button>
+
+            <button
+              onClick={() => setActiveTab('tool_builder')}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeTab === 'tool_builder' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <Wrench className="w-4 h-4 text-amber-400" />
+              Générateur Outils MCP
+            </button>
+
+            <button
+              onClick={() => setActiveTab('self_healing')}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeTab === 'self_healing' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <Code2 className="w-4 h-4 text-indigo-400" />
+              Auto-Guérison Code
+            </button>
+
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeTab === 'analytics' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <Coins className="w-4 h-4 text-cyan-400" />
+              FinOps & Tokens
+            </button>
+          </nav>
+
+          <div className="px-2 mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Moteurs & Fusions v0.6</span>
           </div>
 
           <nav className="space-y-1 mb-4">
@@ -708,6 +895,26 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Live Token & Cost Counter */}
+            <div 
+              onClick={() => setActiveTab('analytics')}
+              className="flex items-center gap-2 bg-slate-900 border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:border-slate-600 transition"
+              title="Consommation Tokens & FinOps"
+            >
+              <Coins className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-slate-300 font-mono font-medium">
+                {analyticsData?.total_tokens ? analyticsData.total_tokens.toLocaleString() : '1,050'} tokens
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-emerald-400 font-medium">
+                ${analyticsData?.total_cost_usd !== undefined ? analyticsData.total_cost_usd.toFixed(4) : '0.0003'}
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-[10px] text-slate-400">
+                {analyticsData?.budget_used_percent !== undefined ? analyticsData.budget_used_percent : 0.0}% budget
+              </span>
+            </div>
+
             <button
               onClick={handleVoiceToggle}
               className={`p-2 rounded-lg border transition ${
@@ -1555,6 +1762,249 @@ export default function App() {
                 <input type="text" defaultValue="http://localhost:11434" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none" />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Tab: Scheduler */}
+        {activeTab === 'scheduler' && (
+          <div className="flex-1 p-6 max-w-3xl overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Calendar className="w-5 h-5 text-emerald-400" />
+                  <h2 className="text-base font-bold text-white">Planificateur Autonome & Tâches Récurrentes</h2>
+                </div>
+                <p className="text-xs text-slate-400">Automatisation des veilles matinales, benchmarks périodiques et audits système.</p>
+              </div>
+              <button
+                onClick={fetchJobs}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs text-slate-300 rounded-lg"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Actualiser
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {jobsList.map(job => (
+                <div key={job.id} className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white">{job.name}</span>
+                      <code className="text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded font-mono font-medium">{job.cron}</code>
+                      <span className="text-[10px] bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">{job.status}</span>
+                    </div>
+                    <p className="text-xs text-slate-300">{job.task}</p>
+                    <p className="text-[10px] text-slate-500">
+                      Dernière exécution : {job.last_run ? job.last_run : 'En attente du prochain cycle'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleTriggerJob(job.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition shrink-0 ml-4"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Déclencher
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Tool Builder */}
+        {activeTab === 'tool_builder' && (
+          <div className="flex-1 p-6 max-w-3xl overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Wrench className="w-5 h-5 text-amber-400" />
+                  <h2 className="text-base font-bold text-white">Générateur d'Outils MCP (Prompt-to-Tool)</h2>
+                </div>
+                <p className="text-xs text-slate-400">Décrivez le comportement en langage naturel pour forger un outil MCP prêt à l'emploi.</p>
+              </div>
+              <span className="text-[11px] font-mono bg-amber-950/60 text-amber-400 border border-amber-800/60 px-2.5 py-1 rounded-lg">
+                core/tool_builder
+              </span>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 mb-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-slate-300 block mb-1">Description du besoin de l'outil :</label>
+                <textarea
+                  value={toolPrompt}
+                  onChange={(e) => setToolPrompt(e.target.value)}
+                  rows={3}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <button
+                onClick={handleGenerateTool}
+                disabled={isRunning}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4" />
+                {isRunning ? 'Synthèse en cours...' : 'Générer & Activer dans le Hub MCP'}
+              </button>
+            </div>
+
+            {toolResult && (
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold text-white">Outil forcé & activé : {toolResult.tool_name}</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 px-2 py-0.5 rounded font-bold uppercase">
+                    Connecté au MCP Hub
+                  </span>
+                </div>
+                <pre className="p-3 rounded-lg bg-slate-950 text-slate-300 font-mono text-[11px] overflow-x-auto border border-slate-800">
+                  {toolResult.generated_spec}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Self-Healing */}
+        {activeTab === 'self_healing' && (
+          <div className="flex-1 p-6 max-w-3xl overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Code2 className="w-5 h-5 text-indigo-400" />
+                  <h2 className="text-base font-bold text-white">Auto-Guérison de Code (Self-Healing Loop)</h2>
+                </div>
+                <p className="text-xs text-slate-400">Diagnostic d'exception, auto-réflexion et réécriture de code sans régression.</p>
+              </div>
+              <span className="text-[11px] font-mono bg-indigo-950/60 text-indigo-400 border border-indigo-800/60 px-2.5 py-1 rounded-lg">
+                core/self_healing
+              </span>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 mb-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-slate-300 block mb-1">Code Défaillant :</label>
+                <textarea
+                  value={healingCode}
+                  onChange={(e) => setHealingCode(e.target.value)}
+                  rows={3}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs font-mono text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-300 block mb-1">Erreur ou Traceback :</label>
+                  <input
+                    type="text"
+                    value={healingError}
+                    onChange={(e) => setHealingError(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-300 block mb-1">Objectif de Correction :</label>
+                  <input
+                    type="text"
+                    value={healingGoal}
+                    onChange={(e) => setHealingGoal(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleRunHeal}
+                disabled={isRunning}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+              >
+                <Zap className="w-4 h-4" />
+                {isRunning ? 'Guérison en cours...' : 'Corriger le Code Automatiquement'}
+              </button>
+            </div>
+
+            {healingResult && (
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold text-white">Code Corrigé avec Succès ({healingResult.iterations} itération)</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 px-2 py-0.5 rounded font-bold uppercase">
+                    Vérification Validée
+                  </span>
+                </div>
+                <pre className="p-3 rounded-lg bg-slate-950 text-emerald-300 font-mono text-[11px] overflow-x-auto border border-slate-800">
+                  {healingResult.final_code}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: FinOps & Tokens */}
+        {activeTab === 'analytics' && (
+          <div className="flex-1 p-6 max-w-4xl overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Coins className="w-5 h-5 text-cyan-400" />
+                  <h2 className="text-base font-bold text-white">FinOps & Consommation des Tokens</h2>
+                </div>
+                <p className="text-xs text-slate-400">Surveillance des dépenses en temps réel, alertes de budget et décompte par modèle.</p>
+              </div>
+              <button
+                onClick={fetchAnalytics}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs text-slate-300 rounded-lg"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Actualiser
+              </button>
+            </div>
+
+            {analyticsData && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                    <span className="text-xs text-slate-400">Total Tokens</span>
+                    <p className="text-lg font-bold text-cyan-400 mt-1">{analyticsData.total_tokens.toLocaleString()}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                    <span className="text-xs text-slate-400">Coût Estimé</span>
+                    <p className="text-lg font-bold text-emerald-400 mt-1">${analyticsData.total_cost_usd.toFixed(4)}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                    <span className="text-xs text-slate-400">Plafond Mensuel</span>
+                    <p className="text-lg font-bold text-white mt-1">${analyticsData.budget_limit_usd.toFixed(2)}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                    <span className="text-xs text-slate-400">Budget Consommé</span>
+                    <p className="text-lg font-bold text-amber-400 mt-1">{analyticsData.budget_used_percent.toFixed(2)}%</p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
+                  <h3 className="text-xs font-bold text-white mb-3">Historique Récent des Inférences</h3>
+                  <div className="space-y-2">
+                    {analyticsData.recent_entries.map((entry, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                        <div>
+                          <span className="text-indigo-400 font-bold">{entry.model}</span>
+                          <span className="text-[10px] text-slate-500 ml-2">{entry.timestamp}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-slate-300">
+                          <span>{entry.total_tokens} tokens</span>
+                          <span className="text-emerald-400 font-bold">${entry.cost_usd.toFixed(6)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

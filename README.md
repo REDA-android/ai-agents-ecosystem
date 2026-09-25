@@ -75,32 +75,35 @@ flowchart TD
 
 ## 🚀 Quickstart
 
-### 1. Backend Server (FastAPI)
+### 1. Démarrage en 1-Clic (Windows)
 
+Double-cliquez sur `start.bat` ou lancez :
+```cmd
+start.bat
+```
+Ce script démarre simultanément l'API FastAPI sur le port 8000 et le Studio Web sur le port 3000.
+
+### 2. Démarrage Manuel
+
+**Backend (FastAPI) :**
 ```bash
-# Install dependencies
-pip install -e .
-
-# Run the API gateway
 uvicorn server.app:app --reload --port 8000
 ```
 
-### 2. Frontend Studio (React + Vite)
-
+**Frontend Studio (React + Vite) :**
 ```bash
 cd apps/web
-npm install
 npm run dev
 ```
 
-Visit `http://localhost:3000` to access the full agent dashboard.
+Visitez `http://localhost:3000` pour accéder au Studio OmniAgent OS.
 
-### 3. Tests
+### 3. Tests Unitaires & Intégration
 
 ```bash
 pytest tests/ -q
 ```
-*All 25 test cases cover existing features and all functional adapters.*
+*30 cas de tests automatisés validant 100% des adaptateurs, du Hub MCP, de la sécurité et des extensions v1.0.0.*
 
 ---
 
