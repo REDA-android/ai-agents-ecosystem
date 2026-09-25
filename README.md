@@ -75,15 +75,23 @@ flowchart TD
 
 ## 🚀 Quickstart
 
-### 1. Démarrage en 1-Clic (Windows)
+### 1. Application Bureau Windows Native (`OmniAgentOS.exe`)
+
+Double-cliquez directement sur **`OmniAgentOS.exe`** :
+- Démarre automatiquement le serveur FastAPI en arrière-plan (sans fenêtre CMD intempestive).
+- Ouvre directement le Studio Web React 19 dans votre navigateur par défaut (`http://localhost:8000`).
+- Se loge dans la zone de notification (System Tray) avec menu contextuel (Ouvrir Studio, Documentation Swagger, Serveur MCP, Redémarrer, Quitter).
+- Coupe proprement les processus enfants à la fermeture pour libérer les ports.
+
+### 2. Démarrage Console en 1-Clic (`start.bat`)
 
 Double-cliquez sur `start.bat` ou lancez :
 ```cmd
 start.bat
 ```
-Ce script démarre simultanément l'API FastAPI sur le port 8000 et le Studio Web sur le port 3000.
+Ce script démarre simultanément l'API FastAPI (port 8000) et le serveur de développement Vite (port 3000).
 
-### 2. Démarrage Manuel
+### 3. Démarrage Manuel
 
 **Backend (FastAPI) :**
 ```bash

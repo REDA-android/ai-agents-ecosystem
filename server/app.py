@@ -323,3 +323,12 @@ async def trigger_scheduled_job(req: TriggerJobRequest):
 @app.post("/api/tools/generate")
 async def generate_tool(req: ToolGenerateRequest):
     return await tool_builder.generate_tool_from_prompt(req.description)
+
+# Mount Web Studio SPA (React 19 build)
+import os
+from fastapi.staticfiles import StaticFiles
+
+WEB_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "apps", "web", "dist")
+if os.path.isdir(WEB_DIST_DIR):
+    app.mount("/", StaticFiles(directory=WEB_DIST_DIR, html=True), name="static_web")
+
