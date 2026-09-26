@@ -23,7 +23,7 @@ from core.orchestration.crew import MultiAgentCrew, TeamTask
 from core.workflows.engine import VisualWorkflowEngine, VisualWorkflowDefinition
 from core.mcp.hub import mcp_hub
 from core.mcp.store import mcp_store
-from core.security.guardrail import guardrail, SafetyPolicy
+from core.security.guardrail import guardrail, SafetyPolicy, SafetyGuardrail
 from core.llm.discovery import LocalLLMScanner
 from core.memory.graph.store import knowledge_graph
 from core.autonomous.runner import OvernightGoalRunner
@@ -339,6 +339,11 @@ class ExecuteCodeRequest(BaseModel):
 async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
+
+    # Security check for command injection vulnerabilities
+    is_safe, msg = SafetyGuardrail.evaluate_command(req.code, SafetyPolicy.HUMAN_APPROVAL)
+    if not is_safe:
+        return {"output": f"Erreur de sécurité : {msg}", "exit_code": 1}
 
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
