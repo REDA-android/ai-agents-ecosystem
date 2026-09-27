@@ -2,9 +2,16 @@ import asyncio
 import subprocess
 from typing import Any, Dict
 from core.mcp.hub import mcp_hub
+from core.security.guardrail import SafetyGuardrail, SafetyPolicy
 
 async def execute_shell_command(command: str, cwd: str = ".") -> Dict[str, Any]:
     """Execute shell command with timeout and safety control (inspired by Goose / ECC)."""
+
+    # 🛡️ Sentinel: Enforce SafetyGuardrail for all shell commands
+    is_safe, reason = SafetyGuardrail.evaluate_command(command, SafetyPolicy.HUMAN_APPROVAL)
+    if not is_safe:
+        return {"error": f"Command rejected by Safety Guardrail: {reason}"}
+
     try:
         proc = await asyncio.create_subprocess_shell(
             command,
