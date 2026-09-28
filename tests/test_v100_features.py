@@ -77,3 +77,21 @@ def test_claude_chat_endpoint():
     assert "tokens" in data
     assert data["tokens"]["total"] > 0
 
+def test_code_execute_security():
+    # Test valid execution
+    res_valid = client.post("/api/code/execute", json={
+        "code": "print('hello')",
+        "language": "python"
+    })
+    assert res_valid.status_code == 200
+    assert res_valid.json()["exit_code"] == 0
+    assert "hello" in res_valid.json()["output"]
+
+    # Test malicious execution
+    res_malicious = client.post("/api/code/execute", json={
+        "code": "import os; os.system('rm -rf /')",
+        "language": "python"
+    })
+    assert res_malicious.status_code == 200
+    assert res_malicious.json()["exit_code"] == 1
+    assert "interceptée" in res_malicious.json()["output"].lower()
