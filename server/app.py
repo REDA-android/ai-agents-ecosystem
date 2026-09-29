@@ -340,6 +340,12 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
+    # We validate the raw code (req.code) directly to prevent injection before writing to a temp file
+    from core.security.guardrail import guardrail, SafetyPolicy
+    allowed, message = guardrail.evaluate_command(req.code, SafetyPolicy.HUMAN_APPROVAL)
+    if not allowed:
+        return {"output": f"Security violation: {message}", "exit_code": 1}
+
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)

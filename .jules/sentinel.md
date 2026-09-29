@@ -1,0 +1,4 @@
+## 2024-05-18 - [Command Injection via Missing Guardrail Validation]
+**Vulnerability:** Found unsanitized and unvalidated command/code executions in `plugins/computer_control/tools.py` (`execute_shell_command`) and `server/app.py` (`/api/code/execute`). These components bypassed the OS and shell command validations mandated by the security architecture.
+**Learning:** Even internal tool execution adapters and code snippet runners must integrate the central `SafetyGuardrail.evaluate_command()` to enforce safe execution policies and prevent injection vulnerabilities, as attackers might directly interface with these internal mechanisms or APIs.
+**Prevention:** Consistently validate all inputs destined for the OS shell or Python subprocess execution engines against the `SafetyGuardrail` system before creating the subprocess or shell.
