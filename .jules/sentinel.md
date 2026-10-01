@@ -1,0 +1,4 @@
+## 2026-10-01 - Missing Guardrail on execute_shell_command
+**Vulnerability:** The `execute_shell_command` tool in `plugins/computer_control/tools.py` executed arbitrary terminal commands directly via `asyncio.create_subprocess_shell` without any safety checks, exposing a critical command injection/Remote Code Execution (RCE) vulnerability.
+**Learning:** `core/security/guardrail.py` provides a `SafetyGuardrail` with strict validation patterns (like `rm -rf`, `drop database`). However, it was not universally applied to all terminal command entry points in the codebase, such as the `shell_execute` MCP tool.
+**Prevention:** Always ensure that any function executing shell commands validates the command against `core.security.guardrail.guardrail.evaluate_command(command, SafetyPolicy.HUMAN_APPROVAL)` before execution. This ensures OS/shell access remains strictly controlled.
