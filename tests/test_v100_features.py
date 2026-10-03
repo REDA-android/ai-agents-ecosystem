@@ -1,8 +1,6 @@
-import pytest
 from fastapi.testclient import TestClient
 from server.app import app
 from core.analytics.token_tracker import token_tracker
-from core.scheduler.manager import agent_scheduler
 
 client = TestClient(app)
 
@@ -77,3 +75,13 @@ def test_claude_chat_endpoint():
     assert "tokens" in data
     assert data["tokens"]["total"] > 0
 
+
+def test_code_execute_security():
+    res = client.post("/api/code/execute", json={
+        "code": "import os; os.system('rm -rf /')",
+        "language": "python"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["exit_code"] == 1
+    assert data["output"].startswith("Sécurité :")
