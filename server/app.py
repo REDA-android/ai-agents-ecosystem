@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 import json
 import asyncio
 
@@ -21,7 +21,6 @@ from core.adapters import (
 from core.orchestration.agent import UnifiedAgent, AgentRole
 from core.orchestration.crew import MultiAgentCrew, TeamTask
 from core.workflows.engine import VisualWorkflowEngine, VisualWorkflowDefinition
-from core.mcp.hub import mcp_hub
 from core.mcp.store import mcp_store
 from core.security.guardrail import guardrail, SafetyPolicy
 from core.llm.discovery import LocalLLMScanner
@@ -340,7 +339,15 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
-    import tempfile, subprocess, sys, os
+    # Sentinel: Security - Evaluate incoming python code against OS injection/Critical commands
+    allowed, message = guardrail.evaluate_command(req.code, SafetyPolicy.HUMAN_APPROVAL)
+    if not allowed:
+        return {"output": f"Sécurité : {message}", "exit_code": 1}
+
+    import tempfile
+    import subprocess
+    import sys
+    import os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
         temp_path = f.name
@@ -365,7 +372,7 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     finally:
         try:
             os.remove(temp_path)
-        except:
+        except Exception:
             pass
 
 
