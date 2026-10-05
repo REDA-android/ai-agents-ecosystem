@@ -385,6 +385,7 @@ export default function ClaudeApp({ onSwitchToDevConsole }: ClaudeAppProps) {
                   onClick={(e) => handleDeleteChat(conv.id, e)}
                   className="opacity-0 group-hover:opacity-100 hover:text-rose-400 p-1 rounded transition text-neutral-500"
                   title="Supprimer"
+                  aria-label="Supprimer la discussion"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -493,6 +494,7 @@ export default function ClaudeApp({ onSwitchToDevConsole }: ClaudeAppProps) {
                   : 'bg-[#202024] border-[#2f2f35] text-neutral-400 hover:text-white'
               }`}
               title="Assistant Vocal"
+              aria-label="Activer l'assistant vocal"
             >
               <Mic className="w-4 h-4" />
             </button>
@@ -641,6 +643,7 @@ export default function ClaudeApp({ onSwitchToDevConsole }: ClaudeAppProps) {
                           ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-md'
                           : 'bg-[#27272a] text-neutral-500 cursor-not-allowed'
                       }`}
+                      aria-label="Envoyer le message"
                     >
                       <Send className="w-3.5 h-3.5" />
                     </button>
@@ -721,6 +724,7 @@ export default function ClaudeApp({ onSwitchToDevConsole }: ClaudeAppProps) {
                     onClick={handleCopyCodeSnippet}
                     className="p-1.5 rounded-lg bg-[#1f1f23] text-neutral-300 hover:text-white border border-[#2e2e33]"
                     title="Copier le code"
+                    aria-label="Copier le code"
                   >
                     {copiedCodeSnippet ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
@@ -729,6 +733,7 @@ export default function ClaudeApp({ onSwitchToDevConsole }: ClaudeAppProps) {
                     onClick={handleDownloadCode}
                     className="p-1.5 rounded-lg bg-[#1f1f23] text-neutral-300 hover:text-white border border-[#2e2e33]"
                     title="Télécharger"
+                    aria-label="Télécharger le code"
                   >
                     <Download className="w-3.5 h-3.5" />
                   </button>
@@ -784,12 +789,14 @@ export default function ClaudeApp({ onSwitchToDevConsole }: ClaudeAppProps) {
                       setTimeout(() => setCopiedArtifact(false), 2000);
                     }}
                     className="p-1.5 rounded-lg text-neutral-400 hover:text-white"
+                    aria-label="Copier l'artefact"
                   >
                     {copiedArtifact ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                   <button
                     onClick={() => setIsArtifactOpen(false)}
                     className="p-1.5 rounded-lg text-neutral-400 hover:text-white"
+                    aria-label="Fermer l'artefact"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
