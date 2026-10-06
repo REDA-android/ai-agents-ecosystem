@@ -1,0 +1,4 @@
+## 2025-02-14 - Prevent Command Injection in Direct Code Execution Endpoint
+**Vulnerability:** The `/api/code/execute` endpoint allowed direct execution of Python code without prior safety validation. This exposed a critical command injection vulnerability where malicious payloads (e.g., `os.system('rm -rf /')`) could be executed on the server.
+**Learning:** Accepting raw executable code from untrusted input requires strict boundary checks before the payload is ever saved to disk or passed to `subprocess.run()`. Assuming users will only submit benign code is a dangerous anti-pattern.
+**Prevention:** Integrate existing security validators, such as `guardrail.evaluate_command()` with a policy like `SafetyPolicy.HUMAN_APPROVAL`, as the very first step in the endpoint logic. Any unauthorized or potentially destructive patterns must be rejected and prevented from executing.
