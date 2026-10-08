@@ -1,0 +1,4 @@
+## 2025-01-20 - Missing Guardrails on Shell Commands
+**Vulnerability:** Found a shell command execution tool (`execute_shell_command` in `plugins/computer_control/tools.py`) that did not utilize the system's global safety guardrails (`core.security.guardrail.guardrail.evaluate_command()`) before creating the subprocess. This is a command injection risk as arbitrary strings could be passed directly into `asyncio.create_subprocess_shell`.
+**Learning:** Even when security architecture exists in the core application (like `SafetyGuardrail`), plugin tools might omit these checks. It's critical to ensure *all* pathways to OS execution pass through the unified guardrail policy, especially for dynamically loaded extensions or adapters.
+**Prevention:** Enforce a strict architecture review requiring any new MCP tool involving OS/Shell access to import and utilize `SafetyPolicy.HUMAN_APPROVAL` before executing any underlying process.
