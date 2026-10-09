@@ -77,3 +77,13 @@ def test_claude_chat_endpoint():
     assert "tokens" in data
     assert data["tokens"]["total"] > 0
 
+
+def test_execute_code_snippet():
+    res = client.post("/api/code/execute", json={"code": "import os; print(os.environ)"})
+    assert res.status_code == 200
+
+
+def test_execute_code_snippet_blocked():
+    res = client.post("/api/code/execute", json={"code": "import os; os.system(\"rm -rf /\")"})
+    assert res.status_code == 200
+    assert "Action critique interceptée par les garde-fous" in res.json()["output"]

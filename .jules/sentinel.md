@@ -1,0 +1,4 @@
+## 2024-05-18 - Missing Guardrail Check on Code Execution API Endpoint
+**Vulnerability:** The `/api/code/execute` endpoint was taking arbitrary Python code submitted via API request and executing it directly using `subprocess.run` on the host machine without evaluating it against the project's central security `guardrail.evaluate_command()`.
+**Learning:** The application evaluates system commands for command injection in places like `/api/security/validate` using the central `core.security.guardrail.guardrail.evaluate_command(..., SafetyPolicy.HUMAN_APPROVAL)` tool, but completely forgot to evaluate user-supplied raw python scripts prior to execution which achieves arbitrary command execution (e.g. `import os; os.system("rm -rf /")`).
+**Prevention:** Any endpoint that executes code dynamically provided by the user must invoke the shared security helper to evaluate the user's intent to enforce safety policies, especially for code execution tools.
