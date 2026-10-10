@@ -1,0 +1,4 @@
+## 2026-10-10 - [CRITICAL] Prevent Command Injection in Direct Code Execution Endpoint
+**Vulnerability:** Arbitrary, unsanitized code was passed directly to an execution backend (creating a temporary Python file and running it via `subprocess.run` on `/api/code/execute`) without any security checks.
+**Learning:** Even internal execution endpoints must validate payloads against `SafetyGuardrail` (`SafetyPolicy.HUMAN_APPROVAL`), otherwise they leave the OS backend trivially vulnerable to command injection.
+**Prevention:** Always wrap direct OS or Python executions using `guardrail.evaluate_command(code, SafetyPolicy.HUMAN_APPROVAL)` before spawning backend processes to ensure malicious OS-level commands (e.g., `rm -rf`, `curl | bash`) are blocked before code runtime.
