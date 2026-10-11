@@ -1,0 +1,4 @@
+## 2025-02-23 - [Critical] Unvalidated Code Execution in `/api/code/execute`
+**Vulnerability:** The `/api/code/execute` endpoint was taking raw user-supplied code (in Python) and executing it directly using `subprocess.run` without running it through the project's security guardrails (`SafetyGuardrail`). This allowed arbitrary command execution since critical commands (like `rm -rf`) could be written directly into the python payload.
+**Learning:** Even if the input is meant to be run as python code rather than a direct shell command, if it accepts generic user payloads and writes them to disk to be executed via `subprocess`, it must be validated with the same security policies (like `SafetyPolicy.HUMAN_APPROVAL`) used for OS and shell commands to prevent malicious OS-level actions.
+**Prevention:** Always pass any user-supplied code or shell commands intended for local execution to `guardrail.evaluate_command(code, SafetyPolicy.HUMAN_APPROVAL)` before proceeding.
