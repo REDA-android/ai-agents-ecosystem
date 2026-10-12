@@ -2,9 +2,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 import json
 import asyncio
+import re
+import os
+from fastapi.staticfiles import StaticFiles
 
 from core.adapters import (
     inject_sources_to_syspath,
@@ -21,7 +24,6 @@ from core.adapters import (
 from core.orchestration.agent import UnifiedAgent, AgentRole
 from core.orchestration.crew import MultiAgentCrew, TeamTask
 from core.workflows.engine import VisualWorkflowEngine, VisualWorkflowDefinition
-from core.mcp.hub import mcp_hub
 from core.mcp.store import mcp_store
 from core.security.guardrail import guardrail, SafetyPolicy
 from core.llm.discovery import LocalLLMScanner
@@ -340,13 +342,20 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
-    import tempfile, subprocess, sys, os
+    allowed, message = guardrail.evaluate_command(req.code, SafetyPolicy.HUMAN_APPROVAL)
+    if not allowed:
+        return {"output": message, "exit_code": 1}
+
+    import os
+    import subprocess
+    import sys
+    import tempfile
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
         temp_path = f.name
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: ASYNC221, PLW1510
             [sys.executable, temp_path],
             capture_output=True,
             text=True,
@@ -365,12 +374,11 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     finally:
         try:
             os.remove(temp_path)
-        except:
+        except OSError:
             pass
 
 
 # Claude Desktop Chat API
-import re
 
 @app.post("/api/chat/claude")
 async def chat_claude(req: ClaudeChatRequest):
@@ -469,8 +477,6 @@ async def chat_claude(req: ClaudeChatRequest):
     }
 
 # Mount Web Studio SPA (React 19 build)
-import os
-from fastapi.staticfiles import StaticFiles
 
 WEB_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "apps", "web", "dist")
 if os.path.isdir(WEB_DIST_DIR):
