@@ -340,6 +340,10 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
+    allowed, message = guardrail.evaluate_command(req.code, SafetyPolicy.HUMAN_APPROVAL)
+    if not allowed:
+        return {"output": message, "exit_code": 1}
+
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
@@ -351,7 +355,7 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
             capture_output=True,
             text=True,
             timeout=10
-        )
+        )  # noqa: ASYNC221, PLW1510
         return {
             "stdout": proc.stdout,
             "stderr": proc.stderr,
