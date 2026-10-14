@@ -340,13 +340,17 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
+    is_safe, msg = guardrail.evaluate_command(req.code, SafetyPolicy.HUMAN_APPROVAL)
+    if not is_safe:
+        return {"output": msg, "exit_code": 1}
+
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
         temp_path = f.name
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: ASYNC221, PLW1510
             [sys.executable, temp_path],
             capture_output=True,
             text=True,
