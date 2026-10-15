@@ -340,17 +340,50 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
+    import ast
+    forbidden_modules = {"os", "sys", "subprocess", "shutil", "pty", "socket", "builtins", "pathlib"}
+    forbidden_functions = {"eval", "exec", "__import__", "open", "getattr", "setattr", "delattr", "globals", "locals", "compile"}
+
+    try:
+        tree = ast.parse(req.code)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split('.')[0] in forbidden_modules:
+                        return {"output": f"Security Error: Import of '{alias.name}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and node.module.split('.')[0] in forbidden_modules:
+                    return {"output": f"Security Error: Import from '{node.module}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in forbidden_functions:
+                    return {"output": f"Security Error: Function '{node.func.id}' is blocked.", "exit_code": 1}
+                elif isinstance(node.func, ast.Attribute) and node.func.attr in forbidden_functions:
+                    return {"output": f"Security Error: Function '{node.func.attr}' is blocked via attribute access.", "exit_code": 1}
+            elif isinstance(node, ast.Attribute):
+                if node.attr in forbidden_functions or node.attr in forbidden_modules:
+                     return {"output": f"Security Error: Access to '{node.attr}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.Name) and node.id == "__builtins__":
+                return {"output": "Security Error: Access to __builtins__ is blocked.", "exit_code": 1}
+    except SyntaxError as e:
+        return {"output": f"Syntax Error: {str(e)}", "exit_code": 1}
+
+    # Additionally enforce guardrail on raw code for extra defense in depth
+    is_safe, message = guardrail.evaluate_command(req.code, SafetyPolicy.HUMAN_APPROVAL)
+    if not is_safe:
+        return {"output": message, "exit_code": 1}
+
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
         temp_path = f.name
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: ASYNC221, PLW1510
             [sys.executable, temp_path],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
+            check=False
         )
         return {
             "stdout": proc.stdout,
