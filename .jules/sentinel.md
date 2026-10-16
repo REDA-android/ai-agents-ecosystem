@@ -1,0 +1,4 @@
+## 2025-02-23 - [Direct Execution Endpoint Required AST Security]
+**Vulnerability:** The direct execution endpoint `/api/code/execute` allowed completely unfiltered python execution via `subprocess.run()`, leaving a Remote Code Execution (RCE) vector completely bypassing standard `SafetyGuardrail` checks since those apply specifically to platform CLI interactions and shell prompts.
+**Learning:** Standard OS and shell command execution verification tools or guardrails (`SafetyGuardrail.evaluate_command()`) are insufficient for preventing malicious injection when users can execute pure Python strings on the backend. This is an explicit bypass.
+**Prevention:** Always implement Python AST (Abstract Syntax Tree) static analysis to aggressively block critical modules (`os`, `sys`, `subprocess`) and built-in reflection functions (`eval`, `exec`, `getattr`, `__import__`) before attempting to securely execute dynamic Python strings using runtime mechanisms.
