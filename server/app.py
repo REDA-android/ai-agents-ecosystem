@@ -335,12 +335,36 @@ class ExecuteCodeRequest(BaseModel):
     code: str
     language: str = "python"
 
+import ast
+
+def _validate_python_code(code: str) -> None:
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        raise ValueError(f"Erreur de syntaxe : {e}")
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in ("os", "sys", "subprocess", "builtins"):
+                    raise ValueError(f"Import non sécurisé détecté : {alias.name}")
+        elif isinstance(node, ast.ImportFrom):
+            if node.module in ("os", "sys", "subprocess", "builtins"):
+                raise ValueError(f"Import non sécurisé détecté depuis {node.module}")
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec", "getattr", "__import__"):
+                raise ValueError(f"Fonction non sécurisée détectée : {node.func.id}")
+
 @app.post("/api/code/execute")
 async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
-    import tempfile, subprocess, sys, os
+    try:
+        _validate_python_code(req.code)
+    except ValueError as e:
+        return {"output": f"Code rejeté par sécurité : {e!s}", "exit_code": 1}
+
+    import os, subprocess, sys, tempfile
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
         temp_path = f.name
