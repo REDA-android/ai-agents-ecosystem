@@ -1,0 +1,4 @@
+## 2024-05-18 - [Fix arbitrary code execution via direct code endpoint]
+**Vulnerability:** A direct code execution endpoint (`/api/code/execute`) was discovered accepting and blindly executing arbitrary Python code using a simple sandbox wrapper around `subprocess.run([sys.executable, temp_path])`.
+**Learning:** Standard OS and shell command guardrails (like the system-wide regex-based `SafetyGuardrail`) are completely useless against scripts executing arbitrary raw Python. The regex approach focuses on terminal commands rather than application-layer execution.
+**Prevention:** Always validate runtime inputs via a Python AST-based static analysis pass prior to execution. AST traversal allows strict rejection of sensitive modules (e.g. `os`, `sys`, `subprocess`, `builtins`) and dangerous functions (e.g. `eval`, `exec`, `getattr`, `__import__`).
