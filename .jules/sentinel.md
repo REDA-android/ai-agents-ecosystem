@@ -1,0 +1,4 @@
+## 2025-02-27 - Remote Code Execution (RCE) in Direct Execution Endpoint
+**Vulnerability:** Python code submitted to the `/api/code/execute` endpoint was written to a temporary file and executed via `subprocess.run` without prior validation. Standard shell-based guardrails (like `SafetyGuardrail` with string matching) do not apply to arbitrary Python script bodies executed in the background.
+**Learning:** When providing a sandboxing or direct code execution endpoint for Python, regex patterns and basic guardrails applied to bash commands fail because the execution runtime is Python, which inherently allows importing dangerous modules like `os`, `sys`, and `subprocess`.
+**Prevention:** Use an AST (Abstract Syntax Tree) static analyzer (`ast.NodeVisitor`) to pre-process the script and strictly block dangerous imports (`os`, `sys`, `subprocess`) and functions (`eval`, `exec`, `getattr`, `__import__`) before even invoking the subprocess.
