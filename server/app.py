@@ -335,10 +335,35 @@ class ExecuteCodeRequest(BaseModel):
     code: str
     language: str = "python"
 
+import ast
+
+def _is_safe_code(code: str) -> bool:
+    try:
+        tree = ast.parse(code)
+        banned_imports = {"os", "sys", "subprocess", "shlex", "pty", "importlib"}
+        banned_funcs = {"eval", "exec", "__import__", "open", "compile", "getattr"}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split('.')[0] in banned_imports:
+                        return False
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and node.module.split('.')[0] in banned_imports:
+                    return False
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in banned_funcs:
+                    return False
+        return True
+    except Exception:
+        return False
+
 @app.post("/api/code/execute")
 async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
+
+    if not _is_safe_code(req.code):
+        return {"output": "Code refusé pour des raisons de sécurité (imports ou fonctions interdites).", "exit_code": 1}
 
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
