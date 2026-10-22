@@ -340,13 +340,34 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
+    import ast
+    try:
+        tree = ast.parse(req.code)
+        banned_mods = {"os", "sys", "subprocess", "importlib"}
+        banned_names = {"eval", "exec", "getattr", "__import__", "__builtins__"}
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split('.')[0] in banned_mods:
+                        return {"output": f"Security Error: Import of '{alias.name}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and node.module.split('.')[0] in banned_mods:
+                    return {"output": f"Security Error: Import from '{node.module}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.Name) and node.id in banned_names:
+                return {"output": f"Security Error: Use of '{node.id}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.Attribute) and node.attr in banned_names:
+                return {"output": f"Security Error: Use of attribute '{node.attr}' is blocked.", "exit_code": 1}
+    except SyntaxError:
+        return {"output": "Syntax Error in provided code.", "exit_code": 1}
+
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
         temp_path = f.name
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.run( # noqa: ASYNC221, PLW1510
             [sys.executable, temp_path],
             capture_output=True,
             text=True,
