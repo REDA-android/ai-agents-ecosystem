@@ -340,6 +340,26 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
+    import ast
+    try:
+        tree = ast.parse(req.code)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for name in node.names:
+                    if name.name.split('.')[0] in ["os", "sys", "subprocess", "importlib"]:
+                        return {"output": f"Security Error: Import of '{name.name}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and node.module.split('.')[0] in ["os", "sys", "subprocess", "importlib"]:
+                    return {"output": f"Security Error: Import from '{node.module}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.Name):
+                if node.id in ["eval", "exec", "getattr", "__import__", "__builtins__"]:
+                    return {"output": f"Security Error: Use of '{node.id}' is blocked.", "exit_code": 1}
+            elif isinstance(node, ast.Attribute):
+                if node.attr in ["eval", "exec", "getattr", "__import__", "__builtins__"]:
+                    return {"output": f"Security Error: Use of attribute '{node.attr}' is blocked.", "exit_code": 1}
+    except SyntaxError as e:
+        return {"output": f"Syntax Error: {str(e)}", "exit_code": 1}
+
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
