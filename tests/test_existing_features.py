@@ -73,3 +73,22 @@ def test_visual_workflow_run_endpoint():
     res = client.post("/api/workflows/run", json=wf)
     assert res.status_code == 200
     assert res.json()["status"] == "completed"
+
+def test_code_execute_security():
+    res = client.post("/api/code/execute", json={"code": "import os\nos.system('ls')"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["exit_code"] == 1
+    assert "Erreur de sécurité : Import non autorisé" in data["output"]
+
+    res = client.post("/api/code/execute", json={"code": "__builtins__.eval('1+1')"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["exit_code"] == 1
+    assert "Erreur de sécurité : Fonction/attribut non autorisé" in data["output"]
+
+    res = client.post("/api/code/execute", json={"code": "print('hello')"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["exit_code"] == 0
+    assert "hello" in data["output"]
