@@ -340,6 +340,28 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
+    import ast
+    try:
+        tree = ast.parse(req.code)
+        banned_imports = {"os", "sys", "subprocess", "importlib"}
+        banned_funcs = {"eval", "exec", "getattr", "__import__", "__builtins__"}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split(".")[0] in banned_imports:
+                        return {"output": "Erreur de sécurité : Import non autorisé.", "exit_code": 1}
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and node.module.split(".")[0] in banned_imports:
+                    return {"output": "Erreur de sécurité : Import non autorisé.", "exit_code": 1}
+            elif isinstance(node, ast.Name):
+                if node.id in banned_funcs:
+                    return {"output": "Erreur de sécurité : Fonction/attribut non autorisé.", "exit_code": 1}
+            elif isinstance(node, ast.Attribute):
+                if node.attr in banned_funcs:
+                    return {"output": "Erreur de sécurité : Fonction/attribut non autorisé.", "exit_code": 1}
+    except SyntaxError:
+        return {"output": "Erreur de syntaxe dans le code.", "exit_code": 1}
+
     import tempfile, subprocess, sys, os
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
