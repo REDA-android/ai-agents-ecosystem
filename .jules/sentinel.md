@@ -1,0 +1,4 @@
+## 2025-02-18 - Fix Command Injection in Code Execution Endpoint
+**Vulnerability:** The `/api/code/execute` endpoint allowed executing arbitrary Python code directly from user input without any validation, enabling command injection (e.g., `import os; os.system('whoami')`).
+**Learning:** Standard OS/terminal guardrails (`SafetyGuardrail`) are completely bypassed when malicious code is injected dynamically via a Python interpreter. The application simply creates a `.py` file and executes it, which escapes standard command regex checks.
+**Prevention:** Always use static analysis (e.g., Python `ast` module) to analyze direct code executions and explicitly block dangerous imports (`os`, `sys`, `subprocess`) and built-in execution functions (`eval`, `exec`) before running any user-provided code in a subprocess.
