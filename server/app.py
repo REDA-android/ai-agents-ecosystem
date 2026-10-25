@@ -1,40 +1,38 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Any, Dict, List, Optional
-import json
 import asyncio
+import json
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from core.adapters import (
-    inject_sources_to_syspath,
-    BrowserUseAdapter,
+    AiriAvatarAdapter,
     AutoGenAdapter,
-    GooseECCControlAdapter,
+    BrowserUseAdapter,
     Catalog500AgentsAdapter,
     GoogleADKAdapter,
+    GooseECCControlAdapter,
     HermesAgentAdapter,
     LangChainAdapter,
-    AiriAvatarAdapter,
     OmnigentRouterAdapter,
+    inject_sources_to_syspath,
 )
-from core.orchestration.agent import UnifiedAgent, AgentRole
-from core.orchestration.crew import MultiAgentCrew, TeamTask
-from core.workflows.engine import VisualWorkflowEngine, VisualWorkflowDefinition
-from core.mcp.hub import mcp_hub
-from core.mcp.store import mcp_store
-from core.security.guardrail import guardrail, SafetyPolicy
-from core.llm.discovery import LocalLLMScanner
-from core.memory.graph.store import knowledge_graph
+from core.analytics.token_tracker import token_tracker
 from core.autonomous.runner import OvernightGoalRunner
 from core.evaluation.benchmark import DeepSeekHarnessBenchmarker
+from core.llm.discovery import LocalLLMScanner
+from core.mcp.store import mcp_store
+from core.memory.graph.store import knowledge_graph
+from core.orchestration.agent import AgentRole, UnifiedAgent
+from core.orchestration.crew import MultiAgentCrew, TeamTask
+from core.scheduler.manager import agent_scheduler
+from core.security.guardrail import SafetyPolicy, guardrail
+from core.self_healing.engine import self_healing
+from core.tool_builder.builder import tool_builder
+from core.workflows.engine import VisualWorkflowDefinition, VisualWorkflowEngine
 from plugins.browser.tools import register_browser_tools
 from plugins.computer_control.tools import register_computer_control_tools
-
-from core.analytics.token_tracker import token_tracker
-from core.self_healing.engine import self_healing
-from core.scheduler.manager import agent_scheduler
-from core.tool_builder.builder import tool_builder
 
 inject_sources_to_syspath()
 register_browser_tools()
@@ -74,7 +72,7 @@ class WebTaskRequest(BaseModel):
 class AutoGenChatRequest(BaseModel):
     topic: str
     rounds: int = 3
-    roles: Optional[List[str]] = None
+    roles: list[str] | None = None
 
 class DevTaskRequest(BaseModel):
     instruction: str
@@ -99,11 +97,11 @@ class BenchmarkRequest(BaseModel):
 class ADKRunRequest(BaseModel):
     task: str
     workflow_mode: str = "sequential"  # "sequential" | "parallel" | "loop" | "delegation"
-    subtasks: Optional[List[str]] = None
+    subtasks: list[str] | None = None
 
 class HermesExecuteRequest(BaseModel):
     task: str
-    tools: Optional[List[str]] = None
+    tools: list[str] | None = None
     compress_trajectory: bool = True
 
 class LangChainRequest(BaseModel):
@@ -118,7 +116,7 @@ class AiriChatRequest(BaseModel):
 class OmnigentRouteRequest(BaseModel):
     prompt: str
     has_media: bool = False
-    media_type: Optional[str] = None
+    media_type: str | None = None
     execute: bool = True
 
 class HealCodeRequest(BaseModel):
@@ -136,8 +134,8 @@ class ClaudeChatRequest(BaseModel):
     message: str
     model: str = "claude-3-5-sonnet"
     deep_thinking: bool = True
-    system_prompt: Optional[str] = None
-    history: Optional[List[Dict[str, str]]] = None
+    system_prompt: str | None = None
+    history: list[dict[str, str]] | None = None
 
 @app.get("/api/health")
 async def health():
@@ -331,6 +329,29 @@ async def trigger_scheduled_job(req: TriggerJobRequest):
 async def generate_tool(req: ToolGenerateRequest):
     return await tool_builder.generate_tool_from_prompt(req.description)
 
+import ast
+
+
+def _is_safe_code(code: str) -> bool:
+    try:
+        tree = ast.parse(code)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split('.')[0] in ("os", "sys", "subprocess", "importlib"):
+                        return False
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and node.module.split('.')[0] in ("os", "sys", "subprocess", "importlib"):
+                    return False
+            elif isinstance(node, ast.Name):
+                if node.id in ("eval", "exec", "getattr", "__import__", "__builtins__"):
+                    return False
+            elif isinstance(node, ast.Attribute) and node.attr in ("eval", "exec", "getattr", "__import__", "__builtins__"):
+                return False
+        return True
+    except SyntaxError:
+        return False
+
 class ExecuteCodeRequest(BaseModel):
     code: str
     language: str = "python"
@@ -340,13 +361,19 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
     if req.language.lower() != "python":
         return {"output": "Seul le langage Python est actuellement exécutable en direct.", "exit_code": 1}
 
-    import tempfile, subprocess, sys, os
+    if not _is_safe_code(req.code):
+        return {"output": "Erreur : Code non sécurisé détecté. Les imports système et l'exécution dynamique sont interdits.", "exit_code": 1}
+
+    import os
+    import subprocess
+    import sys
+    import tempfile
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
         f.write(req.code)
         temp_path = f.name
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: ASYNC221, PLW1510
             [sys.executable, temp_path],
             capture_output=True,
             text=True,
@@ -360,17 +387,18 @@ async def execute_code_snippet(req: ExecuteCodeRequest):
         }
     except subprocess.TimeoutExpired:
         return {"output": "Erreur : Temps d'exécution dépassé (timeout 10s)", "exit_code": 124}
-    except Exception as e:
-        return {"output": f"Erreur d'exécution : {str(e)}", "exit_code": 1}
+    except Exception as e:  # noqa: BLE001
+        return {"output": f"Erreur d'exécution : {e!s}", "exit_code": 1}
     finally:
         try:
             os.remove(temp_path)
-        except:
+        except OSError:
             pass
 
 
 # Claude Desktop Chat API
 import re
+
 
 @app.post("/api/chat/claude")
 async def chat_claude(req: ClaudeChatRequest):
@@ -410,7 +438,7 @@ async def chat_claude(req: ClaudeChatRequest):
         })
 
     # Model reasoning
-    from core.llm.client import UnifiedLLMClient, LLMConfig
+    from core.llm.client import LLMConfig, UnifiedLLMClient
     client = UnifiedLLMClient(LLMConfig(model_name=req.model))
     llm_res = await client.generate_response(messages)
     raw_content = llm_res.choices[0].message.content
@@ -470,6 +498,7 @@ async def chat_claude(req: ClaudeChatRequest):
 
 # Mount Web Studio SPA (React 19 build)
 import os
+
 from fastapi.staticfiles import StaticFiles
 
 WEB_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "apps", "web", "dist")
